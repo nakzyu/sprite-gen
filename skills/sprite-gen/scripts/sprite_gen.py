@@ -22,7 +22,7 @@ def _ensure_dependencies():
     try:
         import gemini_webapi  # noqa: F401
     except ImportError:
-        missing.append("gemini_webapi[browser]")
+        missing.append("git+https://github.com/HanaokaYuzu/Gemini-API.git@master")
     try:
         from PIL import Image  # noqa: F401
     except ImportError:
@@ -52,6 +52,23 @@ try:
     from PIL import Image
 except ImportError:
     Image = None
+
+
+def _remove_watermark(image_path: Path):
+    """Remove the Gemini sparkle watermark from the bottom-right corner.
+    Detects the background color and paints over the watermark area."""
+    if not Image:
+        return
+    img = Image.open(image_path).convert("RGBA")
+    w, h = img.size
+    # Sample background color from top-left corner
+    bg = img.getpixel((2, 2))
+    # Watermark is ~7.5% of image size in the bottom-right corner
+    margin = max(int(w * 0.075), 80)
+    for y in range(h - margin, h):
+        for x in range(w - margin, w):
+            img.putpixel((x, y), bg)
+    img.save(image_path)
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +280,8 @@ async def cmd_generate(output_dir: Path, description: str, name: str | None,
             if not quiet:
                 print(json.dumps(result))
             return result
+
+        _remove_watermark(output_path)
 
         entry = {
             "name": name,
