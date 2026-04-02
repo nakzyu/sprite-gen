@@ -39,20 +39,27 @@ If detailed enough, it generates immediately. If vague, it asks 2-3 questions fi
 /sprite-gen 16-bit RPG warrior, front-facing, Final Fantasy style
 ```
 
-### Style consistency
+### Style consistency (multi-turn sessions)
 
-The plugin maintains Gemini conversation sessions. Generate related sprites and Gemini remembers the art style, palette, and design.
+The plugin uses Gemini's multi-turn conversation to keep sprites consistent. Each subject gets its own session — Gemini remembers the art style, palette, and design from previous turns, so follow-up requests produce visually coherent results without re-describing everything.
 
 ```
 /sprite-gen cute slime character for a platformer
-/sprite-gen make the same slime but jumping       ← same session, consistent style
 ```
+→ generates slime, starts a new session
+
+```
+/sprite-gen make the same slime but jumping
+```
+→ same session — Gemini already knows the slime's style
 
 ### Resume previous work
 
+Sessions persist across conversations. You can pick up where you left off:
+
 ```
 /sprite-gen what was I working on?     ← shows previous sessions
-/sprite-gen continue the warrior       ← resumes with full context
+/sprite-gen continue the warrior       ← resumes with full Gemini context
 ```
 
 ### Sprite sheets
