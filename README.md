@@ -12,14 +12,12 @@ Uses Gemini's image generation via subscription-based browser cookie authenticat
 
 ## Installation
 
-### From marketplace (after publishing)
-
 ```bash
 /plugin marketplace add nakzyu/sprite-gen
-/plugin install sprite-gen@nakzyu
+/plugin install sprite-gen@sprite-gen
 ```
 
-### Local development
+Or for local development:
 
 ```bash
 git clone https://github.com/nakzyu/sprite-gen.git
@@ -55,7 +53,7 @@ Uses an anchor-frame method: generates the first frame, gets approval, then gene
 
 ```
 /sprite-gen list
-/sprite-gen list character category
+/sprite-gen list --category character
 ```
 
 ### Delete a sprite
@@ -102,6 +100,7 @@ sprite-gen/
 │       └── scripts/
 │           └── sprite_gen.py   # Gemini call script
 ├── .gitignore
+├── LICENSE
 └── README.md
 ```
 

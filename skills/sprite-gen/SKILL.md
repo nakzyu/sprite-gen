@@ -133,12 +133,28 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/sprite_gen.py" organize --output-dir "<from
 
 ## First Run Setup
 
-On first use (config doesn't exist):
+Before any command, check if config exists:
+```bash
+cat "${CLAUDE_PLUGIN_DATA}/config.json" 2>/dev/null
+```
+
+If it doesn't exist or fails, run setup:
 
 1. `pip install -U 'gemini_webapi[browser]' Pillow`
 2. Ask user: "Where should sprites be saved?" (default: `./sprites`)
-3. Save config to `${CLAUDE_PLUGIN_DATA}/config.json`
+3. Save config:
+```bash
+mkdir -p "${CLAUDE_PLUGIN_DATA}"
+cat > "${CLAUDE_PLUGIN_DATA}/config.json" << 'EOF'
+{
+  "output_dir": "<user's answer>",
+  "default_size": 32
+}
+EOF
+```
 4. `python3 "${CLAUDE_SKILL_DIR}/scripts/sprite_gen.py" check`
+
+If config exists, read `output_dir` from it and use it for all `--output-dir` arguments.
 
 ## Paths
 

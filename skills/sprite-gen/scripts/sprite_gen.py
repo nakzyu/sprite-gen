@@ -71,7 +71,6 @@ def save_manifest(output_dir: Path, manifest: dict):
 
 
 
-
 # ---------------------------------------------------------------------------
 # Gemini client
 # ---------------------------------------------------------------------------
@@ -100,14 +99,18 @@ async def cmd_check():
 
 
 async def cmd_generate(output_dir: Path, description: str, name: str | None,
-                       size: int, category: str):
-    """Generate a single sprite."""
+                       size: int, category: str, quiet: bool = False) -> dict | None:
+    """Generate a single sprite. Returns the result dict. Prints JSON unless quiet."""
     if size not in SUPPORTED_SIZES:
-        print(json.dumps({"success": False, "error": f"Unsupported size: {size}. Available: {SUPPORTED_SIZES}"}))
-        return
+        result = {"success": False, "error": f"Unsupported size: {size}. Available: {SUPPORTED_SIZES}"}
+        if not quiet:
+            print(json.dumps(result))
+        return result
     if category not in CATEGORIES:
-        print(json.dumps({"success": False, "error": f"Unsupported category: {category}. Available: {CATEGORIES}"}))
-        return
+        result = {"success": False, "error": f"Unsupported category: {category}. Available: {CATEGORIES}"}
+        if not quiet:
+            print(json.dumps(result))
+        return result
 
     if not name:
         name = description.lower().replace(" ", "_")[:30]
@@ -124,12 +127,14 @@ async def cmd_generate(output_dir: Path, description: str, name: str | None,
         response = await client.generate_content(description)
 
         if not response.images:
-            print(json.dumps({
+            result = {
                 "success": False,
                 "error": "No image was generated. Try adjusting the prompt.",
                 "gemini_response": response.text[:500] if response.text else None,
-            }))
-            return
+            }
+            if not quiet:
+                print(json.dumps(result))
+            return result
 
         image = response.images[0]
         await image.save(path=str(category_dir), filename=filename)
@@ -153,7 +158,10 @@ async def cmd_generate(output_dir: Path, description: str, name: str | None,
         manifest["sprites"].append(entry)
         save_manifest(output_dir, manifest)
 
-        print(json.dumps({"success": True, "entry": entry}, indent=2))
+        result = {"success": True, "entry": entry}
+        if not quiet:
+            print(json.dumps(result, indent=2))
+        return result
 
     finally:
         await client.close()
@@ -169,15 +177,15 @@ async def cmd_sheet(output_dir: Path, sheet_name: str, frames_json: str,
     frames = json.loads(frames_json)
     results = []
     for frame in frames:
-        await cmd_generate(
+        result = await cmd_generate(
             output_dir=output_dir,
             description=frame["description"],
             name=frame.get("name"),
             size=size, category=category,
+            quiet=True,
         )
-        manifest = load_manifest(output_dir)
-        if manifest["sprites"]:
-            results.append(manifest["sprites"][-1])
+        if result and result.get("success"):
+            results.append(result["entry"])
 
     if not results:
         print(json.dumps({"success": False, "error": "No sprites were generated."}))
