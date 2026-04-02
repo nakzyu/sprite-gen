@@ -7,6 +7,7 @@ Supports multi-turn sessions for style-consistent sprite generation.
 
 import asyncio
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -40,6 +41,12 @@ def _ensure_dependencies():
 _ensure_dependencies()
 
 from gemini_webapi import GeminiClient  # noqa: E402
+
+# Reduce retry delay between stream reconnects (default 5s → 1s).
+# Image generation causes repeated stream interruptions; the default
+# delays of 5/10/15/20/25s waste ~75s.  With factor=1 → 1/2/3/4/5s = 15s.
+import gemini_webapi.utils.decorators as _deco  # noqa: E402
+_deco.DELAY_FACTOR = 3
 
 try:
     from PIL import Image
@@ -140,16 +147,40 @@ def list_sessions(output_dir: Path) -> list[str]:
 # Gemini client
 # ---------------------------------------------------------------------------
 
-async def create_client(timeout: int = 300) -> GeminiClient:
-    """Create a Gemini client via browser cookie auto-extraction."""
-    try:
-        client = GeminiClient()
-        await client.init(timeout=timeout, auto_close=False)
-        return client
-    except Exception as e:
-        print(f"Error: Could not authenticate with Gemini: {e}")
-        print("  - Make sure you are logged in to gemini.google.com in Chrome/Firefox.")
-        sys.exit(1)
+def _clear_cookie_cache():
+    """Delete cached cookies so the next init loads fresh ones from Chrome."""
+    import tempfile
+    cache_dir = Path(tempfile.gettempdir()) / "gemini_webapi"
+    if cache_dir.exists():
+        for f in cache_dir.glob(".cached_cookies_*.json"):
+            f.unlink()
+            print(f"Cleared stale cookie cache: {f.name}", file=sys.stderr)
+
+
+async def create_client(timeout: int = 450) -> GeminiClient:
+    """Create a Gemini client via browser cookie auto-extraction.
+    Auto-clears cookie cache and retries if UNAUTHENTICATED."""
+    from gemini_webapi.constants import AccountStatus
+
+    for attempt in range(2):
+        try:
+            client = GeminiClient()
+            await client.init(timeout=timeout, auto_close=False, watchdog_timeout=120)
+
+            if client.account_status == AccountStatus.UNAUTHENTICATED and attempt == 0:
+                print("Session expired, refreshing cookies from browser...", file=sys.stderr)
+                await client.close()
+                _clear_cookie_cache()
+                continue
+
+            return client
+        except Exception as e:
+            if attempt == 0:
+                _clear_cookie_cache()
+                continue
+            print(f"Error: Could not authenticate with Gemini: {e}")
+            print("  - Make sure you are logged in to gemini.google.com in Chrome/Firefox.")
+            sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +230,28 @@ async def cmd_generate(output_dir: Path, description: str, name: str | None,
             _chat_to_save = None
             response = await client.generate_content(description)
 
-        if not response.images:
+        if response.images:
+            image = response.images[0]
+            await image.save(path=str(category_dir), filename=filename)
+        elif response.text and re.search(r'https?://[^\s]*googleusercontent\.com/[^\s]+', response.text):
+            # Fallback: library didn't parse the image URL, download directly
+            url = re.search(r'https?://[^\s]*googleusercontent\.com/[^\s]+', response.text).group(0)
+            from curl_cffi.requests import AsyncSession
+            async with AsyncSession(impersonate="chrome") as sess:
+                cookies = getattr(client, 'cookies', None)
+                resp = await sess.get(url, headers={
+                    "Origin": "https://gemini.google.com",
+                    "Referer": "https://gemini.google.com/",
+                }, cookies=cookies)
+                if resp.status_code == 200:
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    output_path.write_bytes(resp.content)
+                else:
+                    result = {"success": False, "error": f"Image download failed: {resp.status_code}"}
+                    if not quiet:
+                        print(json.dumps(result))
+                    return result
+        else:
             if session_name and _chat_to_save:
                 save_session(output_dir, session_name, _chat_to_save.metadata,
                              description=description)
@@ -211,9 +263,6 @@ async def cmd_generate(output_dir: Path, description: str, name: str | None,
             if not quiet:
                 print(json.dumps(result))
             return result
-
-        image = response.images[0]
-        await image.save(path=str(category_dir), filename=filename)
 
         entry = {
             "name": name,
