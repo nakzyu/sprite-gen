@@ -17,25 +17,16 @@ CATEGORIES = ["character", "item", "tile", "effect", "ui"]
 
 
 def _ensure_dependencies():
-    """Automatically install missing dependencies."""
-    missing = []
+    """Install missing dependencies from requirements.txt."""
     try:
         import gemini_webapi  # noqa: F401
-    except ImportError:
-        missing.append("git+https://github.com/HanaokaYuzu/Gemini-API.git@master")
-    try:
         from PIL import Image  # noqa: F401
-    except ImportError:
-        missing.append("Pillow")
-    try:
         import numpy  # noqa: F401
     except ImportError:
-        missing.append("numpy")
-
-    if missing:
-        print(f"Auto-installing missing packages: {', '.join(missing)}")
+        req_file = Path(__file__).parent / "requirements.txt"
+        print(f"Installing dependencies from {req_file.name}...")
         subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "-U", *missing],
+            [sys.executable, "-m", "pip", "install", "-r", str(req_file)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )

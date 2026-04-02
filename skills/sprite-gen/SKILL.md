@@ -197,7 +197,7 @@ cat "${CLAUDE_PLUGIN_DATA}/config.json" 2>/dev/null
 
 If it doesn't exist or fails, run setup:
 
-1. `pip install -U 'git+https://github.com/HanaokaYuzu/Gemini-API.git@master' Pillow`
+1. `pip install -r "${CLAUDE_SKILL_DIR}/scripts/requirements.txt"`
 2. Ask user: "Where should sprites be saved?" (default: `./sprites`)
 3. Save config:
 ```bash

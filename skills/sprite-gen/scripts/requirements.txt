@@ -1,0 +1,3 @@
+git+https://github.com/HanaokaYuzu/Gemini-API.git@master
+Pillow
+numpy
