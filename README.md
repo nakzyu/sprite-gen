@@ -1,8 +1,8 @@
 # sprite-gen
 
-Claude Code plugin for generating and managing 2D game sprites using Google Gemini.
+Claude Code plugin that provides a `/sprite-gen` skill for generating and managing 2D game sprites using Google Gemini.
 
-Uses Gemini's image generation via browser cookie authentication ([`gemini_webapi`](https://github.com/HanaokaYuzu/Gemini-API)), not API keys.
+Uses Gemini's image generation via browser cookie authentication ([`gemini_webapi`](https://github.com/HanaokaYuzu/Gemini-API)), not API keys. Install the plugin and the skill handles everything — prompt crafting, session management, and image processing.
 
 ## Requirements
 
