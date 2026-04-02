@@ -23,7 +23,7 @@ git clone https://github.com/nakzyu/sprite-gen.git
 claude --plugin-dir ./sprite-gen
 ```
 
-Dependencies (`gemini_webapi`, `Pillow`) are auto-installed on first run.
+Dependencies are auto-installed on first run via `requirements.txt`.
 
 ## Usage
 
@@ -85,15 +85,24 @@ Generates an anchor frame first for approval, then remaining frames in the same 
 ## Features
 
 - **Auto cookie refresh**: Detects expired Gemini sessions and automatically reloads cookies from browser
-- **Watermark removal**: Automatically removes the Gemini sparkle watermark from generated images
+- **Watermark removal**: Removes the Gemini sparkle watermark via reverse alpha blending — mathematically restores original pixels with zero artifacts
 - **Image URL fallback**: Directly downloads images when the library fails to parse the response
 - **Retry optimization**: Reduced stream reconnection delays for faster generation
+
+## Dependencies
+
+Managed via `requirements.txt`, auto-installed on first run:
+
+- [`gemini_webapi`](https://github.com/HanaokaYuzu/Gemini-API) — Gemini web client (master branch, native curl-cffi)
+- `Pillow` — image processing
+- `numpy` — watermark removal computation
 
 ## How It Works
 
 - **SKILL.md**: Claude's workflow instructions — questioning, prompt construction, session management
 - **sprite_gen.py**: Calls Gemini, saves images, manages manifest and sessions. Claude constructs all prompts
 - **Multi-turn sessions**: Maintains Gemini conversation context via `gemini_webapi` ChatSession for style consistency
+- **Watermark removal**: Uses pre-extracted alpha maps from the Gemini watermark to reverse the alpha blending and restore original pixels
 
 ## Project Structure
 
@@ -105,7 +114,9 @@ sprite-gen/
 │   └── sprite-gen/
 │       ├── SKILL.md
 │       └── scripts/
-│           └── sprite_gen.py
+│           ├── sprite_gen.py
+│           ├── requirements.txt
+│           └── watermark_alpha.json
 ├── .gitignore
 ├── LICENSE
 └── README.md
