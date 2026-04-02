@@ -207,7 +207,7 @@ async def cmd_generate(output_dir: Path, description: str, name: str | None,
     if not name:
         name = description.lower().replace(" ", "_")[:30]
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{category}_{name}_{size}px_{timestamp}.png"
+    filename = f"{category}_{name}_{timestamp}.png"
 
     category_dir = output_dir / category
     category_dir.mkdir(parents=True, exist_ok=True)
@@ -331,7 +331,7 @@ async def cmd_sheet(output_dir: Path, sheet_name: str, frames_json: str,
     sheet_dir = output_dir / "sheets"
     sheet_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    sheet_filename = f"sheet_{sheet_name}_{size}px_{timestamp}.png"
+    sheet_filename = f"sheet_{sheet_name}_{timestamp}.png"
     sheet_path = sheet_dir / sheet_filename
     sheet.save(sheet_path)
 
