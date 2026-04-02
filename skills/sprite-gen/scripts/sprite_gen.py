@@ -56,18 +56,16 @@ except ImportError:
 
 def _remove_watermark(image_path: Path):
     """Remove the Gemini sparkle watermark from the bottom-right corner.
-    Detects the background color and paints over the watermark area."""
+    Mirrors pixels from just above/left of the watermark area for seamless fill."""
     if not Image:
         return
     img = Image.open(image_path).convert("RGBA")
     w, h = img.size
-    # Sample background color from top-left corner
-    bg = img.getpixel((2, 2))
     # Watermark is ~7.5% of image size in the bottom-right corner
     margin = max(int(w * 0.075), 80)
-    for y in range(h - margin, h):
-        for x in range(w - margin, w):
-            img.putpixel((x, y), bg)
+    # Copy the strip just above the watermark area and paste it over
+    src_region = img.crop((w - margin, h - 2 * margin, w, h - margin))
+    img.paste(src_region, (w - margin, h - margin))
     img.save(image_path)
 
 
