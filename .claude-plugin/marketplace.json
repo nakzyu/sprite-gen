@@ -11,7 +11,7 @@
     {
       "name": "sprite-gen",
       "source": "./",
-      "description": "Generate and manage 2D pixel art sprites for games using Google Gemini"
+      "description": "Generate and manage 2D game sprites using Google Gemini"
     }
   ]
 }

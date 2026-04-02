@@ -1,5 +1,5 @@
 """
-sprite_gen.py - 2D pixel art sprite generator and manager using Gemini.
+sprite_gen.py - 2D game sprite generator and manager using Gemini.
 Uses gemini_webapi (Google Gemini subscription-based cookie/OAuth authentication).
 Designed for portable use - all paths are passed as arguments.
 """
