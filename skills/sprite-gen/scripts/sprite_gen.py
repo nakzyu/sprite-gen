@@ -210,7 +210,7 @@ async def create_client(timeout: int = 450) -> GeminiClient:
     for attempt in range(2):
         try:
             client = GeminiClient()
-            await client.init(timeout=timeout, auto_close=False, watchdog_timeout=120)
+            await client.init(timeout=timeout, auto_close=False, watchdog_timeout=300)
 
             if client.account_status == AccountStatus.UNAUTHENTICATED and attempt == 0:
                 print("Session expired, refreshing cookies from browser...", file=sys.stderr)
@@ -229,6 +229,93 @@ async def create_client(timeout: int = 450) -> GeminiClient:
 
 
 # ---------------------------------------------------------------------------
+# Patch: fix image parsing when files are attached
+# ---------------------------------------------------------------------------
+# When files are attached to a request, candidate_data[12] comes back as a
+# list containing dicts instead of nested lists. The library's _parse_candidate
+# looks at [12][7][0] (list indexing) which misses the dict structure.
+# The actual image URL is at: candidate_data[12][0]['8'][0][0][0][3][1]
+
+def _patch_parse_candidate():
+    """Monkey-patch GeminiClient._parse_candidate to handle dict responses."""
+    from gemini_webapi.utils.parsing import get_nested_value
+    from gemini_webapi.types import GeneratedImage
+
+    _original = GeminiClient._parse_candidate
+
+    def _patched(self, candidate_data, cid, rid, rcid):
+        result = _original(self, candidate_data, cid, rid, rcid)
+        text, thoughts, web_images, generated_images, generated_videos, generated_media = result
+
+        # If no generated images found, check for dict structure
+        if not generated_images:
+            try:
+                cd12 = get_nested_value(candidate_data, [12], None)
+                if cd12 and isinstance(cd12, list) and len(cd12) > 0 and isinstance(cd12[0], dict):
+                    items = cd12[0].get('8', [])
+                    for img_idx, item in enumerate(items):
+                        url = None
+                        try:
+                            # item structure: [[[None, None, None, [None, 1, 'file.png', 'https://...', ...]]]]
+                            url_data = item[0][0][3]
+                            # Find the googleusercontent URL in the list
+                            for v in url_data:
+                                if isinstance(v, str) and 'googleusercontent.com' in v:
+                                    url = v
+                                    break
+                        except (IndexError, TypeError, KeyError):
+                            pass
+                        if url:
+                            image_id = None
+                            try:
+                                image_id = item[0][0][3][2]
+                            except (IndexError, TypeError, KeyError):
+                                pass
+                            if not image_id:
+                                image_id = f"image_{img_idx}"
+                            generated_images.append(
+                                GeneratedImage(
+                                    url=url,
+                                    title=f"[Generated Image {img_idx}]",
+                                    alt="",
+                                    proxy=self.proxy,
+                                    client=self.client,
+                                    client_ref=self,
+                                    cid=cid, rid=rid, rcid=rcid,
+                                    image_id=image_id,
+                                )
+                            )
+            except Exception:
+                pass
+
+        return text, thoughts, web_images, generated_images, generated_videos, generated_media
+
+    GeminiClient._parse_candidate = _patched
+
+_patch_parse_candidate()
+
+
+async def _download_image(client, url: str, output_path: Path):
+    """Download image with authenticated session cookies."""
+    # Try the internal AsyncSession's cookies first (has full auth),
+    # then fall back to top-level GeminiClient cookies.
+    inner_session = getattr(client, 'client', None)
+    cookies = getattr(inner_session, 'cookies', None) or getattr(client, 'cookies', None)
+
+    from curl_cffi.requests import AsyncSession
+    async with AsyncSession(impersonate="chrome") as sess:
+        resp = await sess.get(url, headers={
+            "Origin": "https://gemini.google.com",
+            "Referer": "https://gemini.google.com/",
+        }, cookies=cookies)
+        if resp.status_code == 200:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(resp.content)
+        else:
+            raise RuntimeError(f"Image download failed: {resp.status_code}")
+
+
+# ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
 
@@ -241,8 +328,10 @@ async def cmd_check():
 
 async def cmd_generate(output_dir: Path, description: str, name: str | None,
                        category: str, session_name: str | None = None,
+                       files: list[str] | None = None,
                        quiet: bool = False) -> dict | None:
-    """Generate a single sprite. Uses chat session if session_name is provided."""
+    """Generate a single sprite. Uses chat session if session_name is provided.
+    files: optional list of file paths to attach (images, etc.)."""
     if category not in CATEGORIES:
         result = {"success": False, "error": f"Unsupported category: {category}. Available: {CATEGORIES}"}
         if not quiet:
@@ -261,6 +350,9 @@ async def cmd_generate(output_dir: Path, description: str, name: str | None,
     client = await create_client()
 
     try:
+        # Resolve file paths
+        file_paths = [Path(f) for f in files] if files else None
+
         # Use multi-turn session if provided
         if session_name:
             saved = load_session(output_dir, session_name)
@@ -268,34 +360,28 @@ async def cmd_generate(output_dir: Path, description: str, name: str | None,
                 chat = client.start_chat(metadata=saved["metadata"])
             else:
                 chat = client.start_chat()
-            response = await chat.send_message(description)
+            response = await chat.send_message(description, files=file_paths)
             # session metadata saved after sprite entry is created (below)
             _chat_to_save = chat
         else:
             _chat_to_save = None
-            response = await client.generate_content(description)
+            response = await client.generate_content(description, files=file_paths)
 
         if response.images:
             image = response.images[0]
-            await image.save(path=str(category_dir), filename=filename)
+            try:
+                await image.save(path=str(category_dir), filename=filename)
+            except Exception:
+                # Fallback: library save failed (e.g. 403), download with cookies
+                image_url = getattr(image, 'url', None)
+                if image_url:
+                    await _download_image(client, image_url, output_path)
+                else:
+                    raise
         elif response.text and re.search(r'https?://[^\s]*googleusercontent\.com/[^\s]+', response.text):
             # Fallback: library didn't parse the image URL, download directly
             url = re.search(r'https?://[^\s]*googleusercontent\.com/[^\s]+', response.text).group(0)
-            from curl_cffi.requests import AsyncSession
-            async with AsyncSession(impersonate="chrome") as sess:
-                cookies = getattr(client, 'cookies', None)
-                resp = await sess.get(url, headers={
-                    "Origin": "https://gemini.google.com",
-                    "Referer": "https://gemini.google.com/",
-                }, cookies=cookies)
-                if resp.status_code == 200:
-                    output_path.parent.mkdir(parents=True, exist_ok=True)
-                    output_path.write_bytes(resp.content)
-                else:
-                    result = {"success": False, "error": f"Image download failed: {resp.status_code}"}
-                    if not quiet:
-                        print(json.dumps(result))
-                    return result
+            await _download_image(client, url, output_path)
         else:
             if session_name and _chat_to_save:
                 save_session(output_dir, session_name, _chat_to_save.metadata,
@@ -483,7 +569,7 @@ async def main():
     if len(sys.argv) < 2:
         print("Usage:")
         print("  sprite_gen.py check")
-        print("  sprite_gen.py generate <desc> --output-dir DIR [--name N] [--category character] [--session NAME]")
+        print("  sprite_gen.py generate <desc> --output-dir DIR [--name N] [--category character] [--session NAME] [--files path1,path2]")
         print("  sprite_gen.py sheet <name> --output-dir DIR --frames '<json>' [--category character] [--session NAME]")
         print("  sprite_gen.py list --output-dir DIR [--category CAT]")
         print("  sprite_gen.py delete <name> --output-dir DIR")
@@ -505,12 +591,15 @@ async def main():
         if len(sys.argv) < 3 or sys.argv[2].startswith("--"):
             print("Error: Please provide a description.")
             return
+        files_str = opts.get("files")
+        files = files_str.split(",") if files_str else None
         await cmd_generate(
             output_dir=output_dir,
             description=sys.argv[2],
             name=opts.get("name"),
             category=opts.get("category", "character"),
             session_name=opts.get("session"),
+            files=files,
         )
 
     elif command == "sheet":

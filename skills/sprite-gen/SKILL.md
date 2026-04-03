@@ -117,8 +117,11 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/sprite_gen.py" generate "<your crafted prom
   --output-dir "<from config>" \
   --name <inferred_name> \
   --category <inferred_category> \
-  --session <inferred_session>
+  --session <inferred_session> \
+  [--files <comma-separated paths>]
 ```
+
+Use `--files` when the user provides a reference image (e.g. "make this into pixel art", "use this as reference"). Gemini will see the image alongside the text prompt.
 
 ### Phase 5: Show Result
 

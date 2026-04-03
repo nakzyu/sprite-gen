@@ -15,6 +15,7 @@ sprites/
 
 # Local Claude Code config (per-machine)
 .claude/
+.claude-plugin/
 
 # OS
 .DS_Store
