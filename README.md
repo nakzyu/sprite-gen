@@ -1,8 +1,14 @@
 # gemini-sprite-gen
 
-Claude Code plugin that provides a `/gemini-sprite-gen` skill for generating and managing 2D game sprites using Google Gemini.
+<p align="center">
+  <img src="demo.gif" alt="Idle animation demo" width="256" />
+  <br>
+  <em>5-frame idle animation with eye blink — generated with Gemini Pro</em>
+</p>
 
-Uses Gemini's image generation via browser cookie authentication ([`gemini_webapi`](https://github.com/HanaokaYuzu/Gemini-API)), not API keys. Install the plugin and the skill handles everything — prompt crafting, session management, and image processing.
+Claude Code plugin for generating 2D game sprites using Google Gemini.
+
+Uses browser cookie auth ([`gemini_webapi`](https://github.com/HanaokaYuzu/Gemini-API)) — no API keys needed.
 
 ## Requirements
 
@@ -23,43 +29,42 @@ git clone https://github.com/nakzyu/gemini-sprite-gen.git
 claude --plugin-dir ./gemini-sprite-gen
 ```
 
-Dependencies are auto-installed on first run via `requirements.txt`.
+Dependencies are auto-installed on first run.
 
 ## Usage
 
-### Generate a sprite
+### Generate
 
 ```
 /gemini-sprite-gen warrior character
-```
-
-If detailed enough, it generates immediately. If vague, it asks 2-3 questions first.
-
-```
 /gemini-sprite-gen 16-bit RPG warrior, front-facing, Final Fantasy style
 ```
 
-### Style consistency (multi-turn sessions)
+If the request is vague, it asks 2-3 clarifying questions first.
 
-The plugin uses Gemini's multi-turn conversation to keep sprites consistent. Each subject gets its own session — Gemini remembers the art style, palette, and design from previous turns, so follow-up requests produce visually coherent results without re-describing everything.
+### Reference images
 
-```
-/gemini-sprite-gen cute slime character for a platformer
-```
-→ generates slime, starts a new session
+Attach images to guide style or convert existing characters:
 
 ```
-/gemini-sprite-gen make the same slime but jumping
+/gemini-sprite-gen convert this character to chibi pixel art [attach image]
+/gemini-sprite-gen make this into a 16-bit RPG sprite [attach image]
 ```
-→ same session — Gemini already knows the slime's style
 
-### Resume previous work
+### Multi-turn sessions
 
-Sessions persist across conversations. You can pick up where you left off:
+Each subject gets its own Gemini session for style consistency:
 
 ```
-/gemini-sprite-gen what was I working on?     ← shows previous sessions
-/gemini-sprite-gen continue the warrior       ← resumes with full Gemini context
+/gemini-sprite-gen cute slime for a platformer     ← new session
+/gemini-sprite-gen make it jumping                  ← same session, same style
+```
+
+Sessions persist across conversations:
+
+```
+/gemini-sprite-gen what was I working on?           ← list previous sessions
+/gemini-sprite-gen continue the warrior             ← resume with full context
 ```
 
 ### Sprite sheets
@@ -68,18 +73,7 @@ Sessions persist across conversations. You can pick up where you left off:
 /gemini-sprite-gen warrior walk cycle, 4 frames, sprite sheet
 ```
 
-Generates an anchor frame first for approval, then remaining frames in the same session.
-
-### Reference images
-
-Attach reference images to guide generation — useful for style matching or character conversion:
-
-```
-/gemini-sprite-gen convert this character to chibi pixel art [attach image]
-/gemini-sprite-gen make this into a 16-bit RPG sprite [attach image]
-```
-
-Multiple references work too (e.g. character design + target art style).
+Generates an anchor frame for approval, then remaining frames in the same session.
 
 ### Management
 
@@ -92,23 +86,21 @@ Multiple references work too (e.g. character design + target art style).
 
 ## Features
 
-- **Gemini Pro model** — uses `gemini-3-pro` (Nano Banana 2) for higher quality image generation
-- **Real transparent backgrounds** — Gemini can't output alpha channels natively, so the plugin auto-generates on chromakey green (#00FF00) and removes it via HSV-based detection with despill for clean edges
-- **Reference image support** — attach images to guide style, character design, or art direction. When references are provided, prompt text is kept minimal to let the image communicate the style
-- **Auto cookie refresh** — detects expired Gemini sessions and reloads cookies from browser automatically
-- **Watermark removal** — removes the Gemini sparkle watermark via reverse alpha blending, restoring original pixels with zero artifacts
-- **Portable manifest** — sprite paths stored as relative paths for cross-machine compatibility
+- **Gemini Pro** — uses `gemini-3-pro` for higher quality generation
+- **Real transparency** — auto chromakey green screen + HSV removal with despill
+- **Reference images** — attach images to guide style; prompt text stays minimal
+- **Auto cookie refresh** — detects expired sessions, reloads from browser
+- **Watermark removal** — reverse alpha blending removes Gemini sparkle watermark
+- **Portable manifest** — relative paths for cross-machine compatibility
 
 ## How transparency works
 
-Gemini's image generation model always outputs opaque images — it cannot produce PNG alpha channels. When you ask for a "transparent background", it draws a checkerboard pattern instead.
+Gemini cannot output PNG alpha channels — it draws checkerboard patterns instead. This plugin works around that:
 
-This plugin works around that limitation using the chromakey green screen technique:
-
-1. Every prompt automatically gets a green screen instruction appended (`#00FF00` background)
-2. After the image is saved, HSV-based color detection identifies and removes the green background
+1. Appends chromakey green (`#00FF00`) background instruction to every prompt
+2. HSV-based color detection identifies and removes the green background
 3. Edge pixels are despilled to remove green color bleed
-4. The result is a clean PNG with real transparency
+4. Result: clean PNG with real transparency
 
 ## License
 

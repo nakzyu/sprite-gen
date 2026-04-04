@@ -55,7 +55,6 @@ GREENSCREEN_PROMPT_SUFFIX = """
 CRITICAL BACKGROUND REQUIREMENT:
 - Background MUST be solid, flat, uniform chromakey green (#00FF00, RGB 0,255,0).
 - NO gradients, NO shadows, NO lighting effects on the background.
-- The subject must have a thin white outline separating it from the green.
 - The subject itself must NOT contain any green colors.
 """
 
@@ -375,14 +374,23 @@ async def _download_image(client, url: str, output_path: Path):
 
     headers = {"Referer": "https://gemini.google.com/"}
 
-    # Try multiple URL variants — full-size suffix can cause 403
-    urls_to_try = [url]
-    if "=s" not in url:
-        urls_to_try.append(url + "=s1024-rj")
-    # Also try stripping any size suffix
-    for suffix in ["=s2048-rj", "=s1024-rj", "=d-I?alr=yes"]:
-        if suffix in url:
-            urls_to_try.append(url.replace(suffix, ""))
+    # Build a set of URL variants to try — different suffixes resolve differently
+    base_url = url
+    for suffix in ["=s2048-rj", "=s1024-rj", "=s512-rj", "=d-I?alr=yes"]:
+        if suffix in base_url:
+            base_url = base_url.replace(suffix, "")
+            break
+
+    urls_to_try = [
+        url,                         # original URL as-is
+        base_url + "=s1024-rj",      # preview size
+        base_url + "=s512-rj",       # smaller preview
+        base_url,                    # bare URL (no suffix)
+        base_url + "=s2048-rj",     # full size
+    ]
+    # Deduplicate while preserving order
+    seen = set()
+    urls_to_try = [u for u in urls_to_try if not (u in seen or seen.add(u))]
 
     last_status = None
     for try_url in urls_to_try:
@@ -393,7 +401,24 @@ async def _download_image(client, url: str, output_path: Path):
             return
         last_status = resp.status_code
 
-    raise RuntimeError(f"Image download failed after {len(urls_to_try)} attempts, last status: {last_status}")
+    # Last resort: create a fresh client with new cookies and retry
+    try:
+        fresh_client = await create_client(timeout=30)
+        fresh_session = getattr(fresh_client, 'client', None)
+        if fresh_session:
+            for try_url in urls_to_try:
+                resp = await fresh_session.get(try_url, headers=headers)
+                if resp.status_code == 200 and len(resp.content) > 100:
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    output_path.write_bytes(resp.content)
+                    await fresh_client.close()
+                    return
+                last_status = resp.status_code
+            await fresh_client.close()
+    except Exception:
+        pass
+
+    raise RuntimeError(f"Image download failed after all attempts, last status: {last_status}")
 
 
 # ---------------------------------------------------------------------------
@@ -453,15 +478,22 @@ async def cmd_generate(output_dir: Path, description: str, name: str | None,
 
         if response.images:
             image = response.images[0]
-            try:
-                await image.save(path=str(category_dir), filename=filename)
-            except Exception:
-                # Fallback: library save failed (e.g. 403), download with cookies
+            saved_ok = False
+            # Try library save (full size first, then preview size)
+            for full_size in [True, False]:
+                try:
+                    await image.save(path=str(category_dir), filename=filename, full_size=full_size)
+                    saved_ok = True
+                    break
+                except Exception:
+                    continue
+            if not saved_ok:
+                # Fallback: download with authenticated session
                 image_url = getattr(image, 'url', None)
                 if image_url:
                     await _download_image(client, image_url, output_path)
                 else:
-                    raise
+                    raise RuntimeError("No image URL available for download")
         elif response.text and re.search(r'https?://[^\s]*googleusercontent\.com/[^\s]+', response.text):
             # Fallback: library didn't parse the image URL, download directly
             url = re.search(r'https?://[^\s]*googleusercontent\.com/[^\s]+', response.text).group(0)
