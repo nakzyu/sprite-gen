@@ -467,9 +467,17 @@ async def cmd_generate(output_dir: Path, description: str, name: str | None,
             saved = load_session(output_dir, session_name)
             if saved:
                 chat = client.start_chat(metadata=saved["metadata"], model=Model.BASIC_PRO)
+                try:
+                    response = await chat.send_message(description, files=file_paths)
+                except Exception as e:
+                    # Session likely deleted on Gemini's side — clean up and start fresh
+                    print(f"Session '{session_name}' expired on Gemini, starting fresh: {e}", file=sys.stderr)
+                    delete_session(output_dir, session_name)
+                    chat = client.start_chat(model=Model.BASIC_PRO)
+                    response = await chat.send_message(description, files=file_paths)
             else:
                 chat = client.start_chat(model=Model.BASIC_PRO)
-            response = await chat.send_message(description, files=file_paths)
+                response = await chat.send_message(description, files=file_paths)
             # session metadata saved after sprite entry is created (below)
             _chat_to_save = chat
         else:
@@ -641,21 +649,52 @@ def cmd_organize(output_dir: Path):
     print(json.dumps({"total": len(cleaned), "removed_orphans": original_count - len(cleaned)}))
 
 
-def cmd_sessions(output_dir: Path):
-    """List all active sessions with their history."""
+async def cmd_sessions(output_dir: Path):
+    """List all active sessions with their history.
+    Automatically validates against Gemini's chat list and removes stale sessions."""
     session_names = list_sessions(output_dir)
     sessions = []
+    removed = []
+
+    # Build set of valid chat IDs from Gemini server
+    valid_cids = None
+    if session_names:
+        try:
+            client = await create_client(timeout=30)
+            chats = client.list_chats()
+            if chats is not None:
+                valid_cids = {chat.cid for chat in chats}
+            await client.close()
+        except Exception:
+            pass
+
     for name in session_names:
         data = load_session(output_dir, name)
-        if data:
-            sessions.append({
-                "name": name,
-                "created_at": data.get("created_at"),
-                "updated_at": data.get("updated_at"),
-                "turns": len(data.get("history", [])),
-                "history": data.get("history", []),
-            })
-    print(json.dumps({"sessions": sessions}, indent=2))
+        if not data:
+            continue
+
+        # Validate: check if the session's chat ID still exists on Gemini
+        if valid_cids is not None and data.get("metadata"):
+            meta = data["metadata"]
+            # metadata[0] is the chat ID (cid)
+            cid = meta[0] if meta and len(meta) > 0 else None
+            if cid and cid not in valid_cids:
+                delete_session(output_dir, name)
+                removed.append(name)
+                continue
+
+        sessions.append({
+            "name": name,
+            "created_at": data.get("created_at"),
+            "updated_at": data.get("updated_at"),
+            "turns": len(data.get("history", [])),
+            "history": data.get("history", []),
+        })
+
+    result = {"sessions": sessions}
+    if removed:
+        result["removed_stale"] = removed
+    print(json.dumps(result, indent=2))
 
 
 def cmd_end_session(output_dir: Path, session_name: str):
@@ -745,7 +784,7 @@ async def main():
         cmd_organize(output_dir)
 
     elif command == "sessions":
-        cmd_sessions(output_dir)
+        await cmd_sessions(output_dir)
 
     elif command == "end-session":
         if len(sys.argv) < 3 or sys.argv[2].startswith("--"):
