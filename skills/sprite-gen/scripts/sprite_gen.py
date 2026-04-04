@@ -297,23 +297,32 @@ _patch_parse_candidate()
 
 
 async def _download_image(client, url: str, output_path: Path):
-    """Download image with authenticated session cookies."""
-    # Try the internal AsyncSession's cookies first (has full auth),
-    # then fall back to top-level GeminiClient cookies.
+    """Download image using the library's internal authenticated session directly."""
     inner_session = getattr(client, 'client', None)
-    cookies = getattr(inner_session, 'cookies', None) or getattr(client, 'cookies', None)
+    if not inner_session:
+        raise RuntimeError("No internal session available for image download")
 
-    from curl_cffi.requests import AsyncSession
-    async with AsyncSession(impersonate="chrome") as sess:
-        resp = await sess.get(url, headers={
-            "Origin": "https://gemini.google.com",
-            "Referer": "https://gemini.google.com/",
-        }, cookies=cookies)
-        if resp.status_code == 200:
+    headers = {"Referer": "https://gemini.google.com/"}
+
+    # Try multiple URL variants — full-size suffix can cause 403
+    urls_to_try = [url]
+    if "=s" not in url:
+        urls_to_try.append(url + "=s1024-rj")
+    # Also try stripping any size suffix
+    for suffix in ["=s2048-rj", "=s1024-rj", "=d-I?alr=yes"]:
+        if suffix in url:
+            urls_to_try.append(url.replace(suffix, ""))
+
+    last_status = None
+    for try_url in urls_to_try:
+        resp = await inner_session.get(try_url, headers=headers)
+        if resp.status_code == 200 and len(resp.content) > 100:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_bytes(resp.content)
-        else:
-            raise RuntimeError(f"Image download failed: {resp.status_code}")
+            return
+        last_status = resp.status_code
+
+    raise RuntimeError(f"Image download failed after {len(urls_to_try)} attempts, last status: {last_status}")
 
 
 # ---------------------------------------------------------------------------

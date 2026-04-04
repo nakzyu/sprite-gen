@@ -106,6 +106,13 @@ Translate the user's intent into an English prompt for Gemini:
 - Be specific and visual
 - Add technical constraints at the end: single sprite, background type
 
+**CRITICAL — When reference images are provided:**
+- Keep the text prompt SHORT. The reference image already communicates the style — long text descriptions override and conflict with the visual reference.
+- BAD: "Generate a HIGH QUALITY DETAILED chibi pixel art with smooth anti-aliased pixels, proper light/shadow shading, rich color palette, at least 128x128 pixels, long flowing blue hair with highlights..."
+- GOOD: "Make this character (image 1) into a cute chibi pixel art like image 2. Must match image 2's style exactly. Transparent background."
+- Only add text for things the image CAN'T communicate: background type, pose changes, specific corrections from user feedback.
+- If the user provides a style reference, trust it. Don't re-describe the style in words.
+
 For follow-ups in an existing session, reference the previous generation naturally:
 - "same warrior but in a walking pose, left foot forward"
 - "adjust the colors to be darker, keep everything else the same"
