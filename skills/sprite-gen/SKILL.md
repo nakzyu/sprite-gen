@@ -193,7 +193,7 @@ cat "${CLAUDE_PLUGIN_DATA}/config.json" 2>/dev/null
 If it doesn't exist or fails, run setup:
 
 1. `pip install -r "${CLAUDE_SKILL_DIR}/scripts/requirements.txt"`
-2. Ask user: "Where should sprites be saved?" (default: `./sprites`)
+2. Ask user: "스프라이트를 어디에 저장할까요?" (default: `./sprites`)
 3. Save config:
 ```bash
 mkdir -p "${CLAUDE_PLUGIN_DATA}"
@@ -205,9 +205,4 @@ EOF
 ```
 4. `python3 "${CLAUDE_SKILL_DIR}/scripts/sprite_gen.py" check`
 
-If config exists, read `output_dir` from it and use it for all `--output-dir` arguments.
-
-## Paths
-
-- Script: `${CLAUDE_SKILL_DIR}/scripts/sprite_gen.py`
-- Config: `${CLAUDE_PLUGIN_DATA}/config.json`
+If config exists, read `output_dir` from it and pass as `--output-dir` to all commands.

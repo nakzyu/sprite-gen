@@ -70,6 +70,17 @@ Sessions persist across conversations. You can pick up where you left off:
 
 Generates an anchor frame first for approval, then remaining frames in the same session.
 
+### Reference images
+
+Attach reference images to guide generation — useful for style matching or character conversion:
+
+```
+/sprite-gen convert this character to chibi pixel art [attach image]
+/sprite-gen make this into a 16-bit RPG sprite [attach image]
+```
+
+Multiple references work too (e.g. character design + target art style).
+
 ### Management
 
 ```
@@ -81,8 +92,11 @@ Generates an anchor frame first for approval, then remaining frames in the same 
 
 ## Features
 
+- **Gemini Pro model** — uses `gemini-3-pro` for higher quality image generation
+- **Reference image support** — attach images to guide style, character design, or art direction
 - **Auto cookie refresh** — detects expired Gemini sessions and reloads cookies from browser automatically
 - **Watermark removal** — removes the Gemini sparkle watermark via reverse alpha blending, restoring original pixels with zero artifacts
+- **Portable manifest** — sprite paths stored as relative paths for cross-machine compatibility
 
 ## License
 

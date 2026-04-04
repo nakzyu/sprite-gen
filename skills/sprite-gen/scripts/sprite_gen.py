@@ -36,6 +36,7 @@ def _ensure_dependencies():
 _ensure_dependencies()
 
 from gemini_webapi import GeminiClient  # noqa: E402
+from gemini_webapi.constants import Model  # noqa: E402
 
 # Reduce retry delay between stream reconnects (default 5s → 1s).
 # Image generation causes repeated stream interruptions; the default
@@ -357,15 +358,15 @@ async def cmd_generate(output_dir: Path, description: str, name: str | None,
         if session_name:
             saved = load_session(output_dir, session_name)
             if saved:
-                chat = client.start_chat(metadata=saved["metadata"])
+                chat = client.start_chat(metadata=saved["metadata"], model=Model.BASIC_PRO)
             else:
-                chat = client.start_chat()
+                chat = client.start_chat(model=Model.BASIC_PRO)
             response = await chat.send_message(description, files=file_paths)
             # session metadata saved after sprite entry is created (below)
             _chat_to_save = chat
         else:
             _chat_to_save = None
-            response = await client.generate_content(description, files=file_paths)
+            response = await client.generate_content(description, files=file_paths, model=Model.BASIC_PRO)
 
         if response.images:
             image = response.images[0]
@@ -400,7 +401,7 @@ async def cmd_generate(output_dir: Path, description: str, name: str | None,
         entry = {
             "name": name,
             "filename": filename,
-            "path": str(output_path),
+            "path": str(output_path.relative_to(output_dir)),
             "category": category,
             "description": description,
             "session": session_name,
@@ -455,7 +456,7 @@ async def cmd_sheet(output_dir: Path, sheet_name: str, frames_json: str,
     # Combine into horizontal strip using actual image sizes
     images = []
     for entry in results:
-        sprite_path = Path(entry["path"])
+        sprite_path = output_dir / entry["path"]
         if sprite_path.exists():
             images.append(Image.open(sprite_path).convert("RGBA"))
 
@@ -506,7 +507,7 @@ def cmd_delete(output_dir: Path, name: str):
         print(json.dumps({"success": False, "error": f"Not found: {name}"}))
         return
 
-    file_path = Path(to_remove["path"])
+    file_path = output_dir / to_remove["path"]
     if file_path.exists():
         file_path.unlink()
 
@@ -518,7 +519,7 @@ def cmd_delete(output_dir: Path, name: str):
 def cmd_organize(output_dir: Path):
     manifest = load_manifest(output_dir)
     original_count = len(manifest["sprites"])
-    cleaned = [s for s in manifest["sprites"] if Path(s["path"]).exists()]
+    cleaned = [s for s in manifest["sprites"] if (output_dir / s["path"]).exists()]
     manifest["sprites"] = cleaned
     save_manifest(output_dir, manifest)
     print(json.dumps({"total": len(cleaned), "removed_orphans": original_count - len(cleaned)}))
@@ -569,13 +570,14 @@ async def main():
     if len(sys.argv) < 2:
         print("Usage:")
         print("  sprite_gen.py check")
-        print("  sprite_gen.py generate <desc> --output-dir DIR [--name N] [--category character] [--session NAME] [--files path1,path2]")
-        print("  sprite_gen.py sheet <name> --output-dir DIR --frames '<json>' [--category character] [--session NAME]")
-        print("  sprite_gen.py list --output-dir DIR [--category CAT]")
-        print("  sprite_gen.py delete <name> --output-dir DIR")
-        print("  sprite_gen.py organize --output-dir DIR")
-        print("  sprite_gen.py sessions --output-dir DIR")
-        print("  sprite_gen.py end-session <name> --output-dir DIR")
+        print("  sprite_gen.py generate <desc> [--output-dir DIR] [--name N] [--category character] [--session NAME] [--files path1,path2]")
+        print("  sprite_gen.py sheet <name> [--output-dir DIR] --frames '<json>' [--category character] [--session NAME]")
+        print("  sprite_gen.py list [--output-dir DIR] [--category CAT]")
+        print("  sprite_gen.py delete <name> [--output-dir DIR]")
+        print("  sprite_gen.py organize [--output-dir DIR]")
+        print("  sprite_gen.py sessions [--output-dir DIR]")
+        print("  sprite_gen.py end-session <name> [--output-dir DIR]")
+        print("  (default output-dir: ./sprites)")
         return
 
     command = sys.argv[1]
