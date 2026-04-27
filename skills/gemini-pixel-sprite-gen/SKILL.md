@@ -168,8 +168,8 @@ Use `--files` when the user provides a reference image (e.g. "make this into pix
 ## Pixel Art Pipeline (chunky low-res game style)
 
 When the user asks for **game-ready** pixel-art characters with multiple
-actions (idle/attack/walk/hit/death/etc.) that drop straight into Godot,
-follow `${CLAUDE_SKILL_DIR}/PIXEL_ART_PIPELINE.md`. It's the locked-in recipe:
+actions (idle/attack/walk/hit/death/etc.) for any 2D engine, follow
+`${CLAUDE_SKILL_DIR}/PIXEL_ART_PIPELINE.md`. It's the locked-in recipe:
 
 1. Pass canonical style reference (or approved character idle) as `--files`
 2. Prompt = deltas only, with chunky-pixel + 3/4-eye boilerplate
@@ -179,16 +179,17 @@ follow `${CLAUDE_SKILL_DIR}/PIXEL_ART_PIPELINE.md`. It's the locked-in recipe:
    to per-character pad cells to a common size
 5. Game file is `<char>_<action>.png` (sole artifact — no `_1x1`, no `_display`). Open via `open <path>` to preview.
 
-**Trigger this pipeline when:** user wants Godot/Unity pixel-art characters,
-multiple poses of one character, low-res / RPG-classic / chunky / Octopath /
-Dead-Cells style, sprite-sheet animations.
+**Trigger this pipeline when:** user wants pixel-art characters for a 2D
+game (any engine — Godot, Unity, Pico-8, raylib, web, etc.), multiple poses
+of one character, low-res / RPG-classic / chunky / Octopath / Dead-Cells
+style, sprite-sheet animations.
 
 **Skip this pipeline when:** user wants a single static illustration, a
 non-character asset (item/tile/UI), high-res pixel art, or not for a game
 engine. Plain `generate` is fine.
 
 Read `${CLAUDE_SKILL_DIR}/PIXEL_ART_PIPELINE.md` before starting; it covers
-references, prompt template, h-tuning compare grid, normalize, Godot import,
+references, prompt template, h-tuning compare grid, normalize, engine import,
 and known failure modes.
 
 ## Sprite Sheet Workflow

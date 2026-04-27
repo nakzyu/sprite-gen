@@ -4,11 +4,11 @@ cell size.
 
 Default (per-character): every action of one character padded to that
 character's max(w) x max(h). Different characters can have different cells.
-Use this when each character gets its own SpriteFrames in Godot.
+Use this when each character has its own animation set in your engine.
 
 --global: every sheet across all characters padded to the GLOBAL max(w) x
 max(h). Use this when you want a single uniform cell size across the entire
-roster (Godot atlas, simpler import).
+roster (one atlas, simpler import).
 
 Feet stay centered horizontally, character stays bottom-aligned.
 

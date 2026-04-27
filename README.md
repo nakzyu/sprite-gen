@@ -5,7 +5,7 @@ with consistent style across an entire roster — characters, monsters, and
 boss variants — using Google Gemini for generation and a deterministic
 post-process for snap+normalize.
 
-Output drops straight into Godot AnimatedSprite2D as `<char>_<action>.png`.
+Output is engine-agnostic: chunky-pixel `<char>_<action>.png` files with binary alpha — drop into any 2D engine (Godot, Unity, Pico-8, raylib, web canvas, etc.).
 
 ---
 
@@ -141,13 +141,12 @@ Filename invariant: `<creature>_<action>.png`. No prefixes, no suffixes.
 
 ---
 
-## Godot import
+## Engine import notes
 
-- Project Settings → Rendering → Textures → **Default Texture Filter = Nearest**
-- AnimatedSprite2D + SpriteFrames per creature
-- Drop `<creature>_<action>.png` into each animation row
-- Sprite origin: feet bottom-center. `AnimatedSprite2D.offset = (0, -PAD)` so the node position equals the feet position
-- Different creatures may have different cell sizes — that's expected. Char cells are 48 tall, monster cells are 72 tall
+- Set the engine's texture filter to **NEAREST** (no bilinear / no smoothing). Otherwise pixel art blurs.
+- Each `<creature>_<action>.png` is one frame. Wire them into your engine's animation system per creature.
+- Feet are at row `cell_h - PAD` from the texture top, x-centered. Set the sprite origin / offset so node position equals feet position (in Godot 4: `offset = (0, -PAD)`; in Unity: pivot bottom-center; in Pico-8: just blit at `(x, y - cell_h)`).
+- Cell sizes can differ across creatures (chars 48 tall, monsters 72 tall by default). Group same-tier creatures into one atlas if your engine wants uniform cell.
 
 ---
 

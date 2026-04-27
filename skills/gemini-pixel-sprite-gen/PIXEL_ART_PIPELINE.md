@@ -2,13 +2,13 @@
 
 The locked-in recipe for game-ready sprites: **generate → snap**.
 Output: `<char>_<action>.png` (and only that — no `_1x1`, no `_display`).
-Drop straight into Godot AnimatedSprite2D.
+Engine-agnostic — drop into any 2D engine (Godot, Unity, Pico-8, raylib, web canvas, etc.) with NEAREST texture filter.
 
 Use this pipeline whenever the user wants:
 - Chunky low-res pixel art (RPG-classic, Octopath/Dead-Cells scale)
 - Multiple actions (idle / attack / walk / hit / death / victory) of the same
   character to swap cleanly in an animation
-- Godot-import-ready sheets
+- Engine-agnostic sheets ready for any 2D pipeline (Godot/Unity/Pico-8/etc.)
 
 ## Step 0 — Read project config (ALWAYS)
 
@@ -213,15 +213,14 @@ If the user says the snap is broken / weird:
    `--top-crop 40-100`.
 3. Third cause: source itself is bad → regenerate the source.
 
-## Step 5 — Godot import
+## Step 5 — Engine import
 
-- Project Settings → Rendering → Textures → **Default Texture Filter = Nearest**
-- AnimatedSprite2D + SpriteFrames per character/monster
-- Each `<char>_<action>.png` becomes a frame inside that animation's row.
-- Multi-frame actions later (walk cycle etc.) follow `<char>_<action>_<N>x1.png`
-  convention — N frames laid out horizontally, hframes=N.
-- Sprite origin: feet bottom-center. `AnimatedSprite2D.offset = (0, -PAD)` so
-  node position = feet position.
+Engine-agnostic. The output PNGs work in any 2D pipeline; just respect:
+
+- **NEAREST filter only** — never bilinear / smoothing. Otherwise pixel art blurs.
+- **Feet anchor** — feet are at `(cell_w / 2, cell_h - PAD)` from texture top-left. Set the sprite origin / offset so the entity's logical position equals the feet position. (Godot 4: `AnimatedSprite2D.offset = (0, -PAD)`. Unity: pivot bottom-center. Pico-8: `spr` blits at top-left, so adjust by `cell_h`.)
+- **Multi-frame actions** later follow `<char>_<action>_<N>x1.png` — N frames horizontally, hframes=N for engines that auto-split.
+- **Different cell sizes per creature** are expected (chars 48 tall, monsters 72 tall by default). Group same-tier creatures into one atlas if your engine prefers uniform cells.
 
 ## What NOT to do
 
